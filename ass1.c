@@ -20,7 +20,8 @@ typedef struct {
 	int id;
 	int size;
 	int mem_loc;	/* where in memory is the process located */
-	int turn_num;	/* in which turn which the process was loaded in memory */
+	int turn_num;	/* in which turn which the process was loaded into memory */
+	int queue_loc;	
 
 } process_t;
 
@@ -46,7 +47,7 @@ typedef struct {
 
 /* function prototypes */
 
-char* getOpt(int argc,char **argv,char *fName,char *algo,int *mem_size);
+char* getOpt(int argc,char **argv,char *fname,char *algo,int *mem_size);
 
 /****************************************************************/
 
@@ -55,12 +56,15 @@ char* getOpt(int argc,char **argv,char *fName,char *algo,int *mem_size);
 int
 main(int argc, char **argv) {
 	
-	char *fName=NULL;
+	char *fname=NULL;
 	char algo[ALGO_LEN + 1];
 	int mem_size;
+	/*process_t * */
 
-	fName=getOpt(argc,argv,fName,algo,&mem_size);
-	printf("%s\n%s\n%d\n", fName,algo,mem_size);
+	fname=getOpt(argc,argv,fname,algo,&mem_size);
+	printf("%s\n%s\n%d\n", fname, algo, mem_size);
+	
+
 
 	return 0;
 }
@@ -69,7 +73,7 @@ main(int argc, char **argv) {
 
 /*get the options, return file name
 */
-char* getOpt(int argc, char **argv, char *fName, char *algo, int *mem_size) {
+char* getOpt(int argc, char **argv, char *fname, char *algo, int *mem_size) {
 
 	char *options[] = { "-f", "-a", "-m" };
 	int found = 0,i,x;
@@ -85,8 +89,8 @@ char* getOpt(int argc, char **argv, char *fName, char *algo, int *mem_size) {
 			if (strcmp(options[x],argv[i] )==0) {
 				found++;
 				if (strcmp(options[x], "-f") == 0) {
-					fName = (char*)malloc(strlen(argv[i+1])+1);
-					strcpy(fName, argv[i + 1]);
+					fname = (char*)malloc(strlen(argv[i+1])+1);
+					strcpy(fname, argv[i + 1]);
 
 				}
 				else if (strcmp(options[x], "-a") == 0) {
@@ -105,5 +109,5 @@ char* getOpt(int argc, char **argv, char *fName, char *algo, int *mem_size) {
 		printf("command line arguments are invalid.");
 		exit(0);
 	}
-	return fName;
+	return fname;
 }
