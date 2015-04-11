@@ -206,20 +206,18 @@ split_list(list_t *list, list_t **first, list_t **last) {
         curr = curr->next;
         count++;
     }
-
-    *first  = make_empty_list();
+	*first = make_empty_list();
     if (curr != list->head) {
         (*first)->size = count;
-        (*first)->head = list->head;
+		(*first)->head = list->head;
         (*first)->foot = prev;
         prev->next     = NULL;
     }
-
-    *last = make_empty_list();
+	*last = make_empty_list();
     if (curr != list->foot) {
         (*last)->head = curr->next;
-        (*last)->foot = list->foot;
-        (*last)->size = list->size - count - 1;
+		(*last)->foot = list->foot;
+		(*last)->size = list->size - count - 1;
     }
 }
 
@@ -280,7 +278,8 @@ join_lists(list_t *list1, list_t *list2) {
 
     if (is_empty_list(list1)) {
         newlist = list2;
-    } else {
+    }
+	else {
         newlist = make_empty_list();
         newlist->head = list1->head;
         newlist->foot = list2->foot;

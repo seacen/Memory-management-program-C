@@ -13,13 +13,16 @@
 
 
 #define ALGO_LEN		5		/* max string size for algorithm name */
-#define NONE			'\0'	/* initial empty char */
 #define NUM_ARGUMENT	7		/* number of command line arguments 
 															to execute the program */
 #define NUM_OPTIONS		3		/* number of options have to be there in arguments */
 #define LAST_OPTPOS		5		/* index position of the last option */
 #define LINELEN			40		/* max line length for the input */
 #define PRE_INPUT		2		/* number of input characters before the size integer */
+
+#define NONE			'\0'	/* initial empty char */
+#define TRUE			1		/* boolean true */
+#define FALSE			0		/* boolean false */
 
 
 
@@ -33,14 +36,18 @@ int read_line(char *line, int maxlen, FILE *f);
 void loadToData(char* line, data_t *data);
 void printData(data_t data);
 void managingMemory(list_t *queue, list_t *freelist, list_t *memlist, 
-						int (*findHole)(data_t, data_t*, list_t*, list_t*));
+							int (*findHole)(int, data_t*, list_t**));
 void initHole(list_t *freelist, int mem_size);
-int findHoleFirst(data_t process, data_t *hole,list_t *freelist,list_t *memlist);
-int findHoleBest(data_t process, data_t *hole,list_t *freelist,list_t *memlist);
-int findHoleWorst(data_t process, data_t *hole,list_t *freelist,list_t *memlist);
-int findHoleNext(data_t process, data_t *hole,list_t *freelist,list_t *memlist);
-void swapProcess(list_t *memlist, list_t *freelist, list_t *queue);
+int findHoleFirst(int size, data_t *hole, list_t **freelist);
+int findHoleBest(int size, data_t *hole, list_t **freelist);
+int findHoleWorst(int size, data_t *hole, list_t **freelist);
+int findHoleNext(int size, data_t *hole, list_t **freelist);
+void swapOut(list_t *memlist, list_t *freelist, list_t *queue);
 void updateProcess(list_t *memlist, data_t *process, int turn, int mem_loc);
+void insert_data(data_t data, list_t *list,
+								int(*cmp)(data_t current,data_t insert));
+int memCmp(data_t current, data_t insert);
+int freeCmp(data_t current, data_t insert);
 
 /****************************************************************/
 
@@ -55,7 +62,7 @@ main(int argc, char **argv) {
 	list_t *queue,*freelist,*memlist;
 
 	fname=getOpt(argc,argv,fname,algo,&mem_size);
-	printf("%s\n%s\n%d\n", fname, algo, mem_size);
+	/* printf("%s\n%s\n%d\n", fname, algo, mem_size); */
 
 	/* waiting queue of processes */
 	queue = make_empty_list();
@@ -65,9 +72,7 @@ main(int argc, char **argv) {
 	memlist = make_empty_list();
 
 	read_file(fname, queue);
-	/*print_list(queue);*/
 	initHole(freelist,mem_size);
-	/*print_list(freelist);*/
 
 
 	if (strcmp(algo, "first")==0) {
@@ -237,15 +242,22 @@ void initHole(list_t *freelist,int mem_size) {
 /*doing memory mangement process
 */
 void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
-							int (*findHole)(data_t,data_t*,list_t*,list_t*)) {
+							int (*findHole)(int,data_t*,list_t**)) {
 	data_t hole,process;
 	int turn = 0;
 	while (!is_empty_list(queue)) {
 		process = remove_head(queue);
-		while (!findHole(process, &hole, freelist, memlist)) {
-			swapProcess(memlist, freelist, queue);
+
+		while (!findHole(process.size, &hole, &freelist)) {
+			swapOut(memlist, freelist, queue);
 		}
+
+		printData(hole);
 		updateProcess(memlist,&process,turn,hole.mem_loc);
+
+		print_list(memlist);
+		print_list(freelist);
+
 		turn++;
 	}
 
@@ -255,15 +267,50 @@ void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 
 /*find a hole using first fit algorithm
 */
-int findHoleFirst(data_t process, data_t *hole, list_t *freelist, list_t *memlist) {
-	return 1;
+int findHoleFirst(int size, data_t *hole, list_t **freelist) {
+	int i,found=FALSE;
+	data_t left_hole;
+	list_t **tmp_first, **tmp_last;
+
+	tmp_first = (list_t**)malloc(sizeof(*tmp_first));
+	tmp_last = (list_t**)malloc(sizeof(*tmp_last));
+	for (i = 0; i < (*freelist)->size; i++) {
+		if (i == 0) {
+			*hole=*begin_iterator(*freelist);
+		}
+		else {
+			*hole = *step_iterator(*freelist);
+		}
+		if (hole->size >= size) {
+			found = 1;
+			/* remove the hole from freelist */
+			split_list(*freelist, tmp_first, tmp_last);
+			*freelist=join_lists(*tmp_first, *tmp_last);
+
+			if (hole->size > size) {
+				left_hole.id = hole->id;
+				left_hole.size = (hole->size - size);
+				left_hole.mem_loc = hole->mem_loc + size;
+				left_hole.turn_num = left_hole.swap_count = -2;
+				insert_data(left_hole, *freelist,freeCmp);
+			}
+			break;
+		}
+	}
+
+	if (found) {
+		return TRUE;
+	}
+	else {
+		return FALSE;
+	}
 }
 
 /****************************************************************/
 
 /*find a hole using best fit algorithm
 */
-int findHoleBest(data_t process, data_t *hole, list_t *freelist, list_t *memlist) {
+int findHoleBest(int size, data_t *hole, list_t **freelist) {
 	return 1;
 }
 
@@ -271,7 +318,7 @@ int findHoleBest(data_t process, data_t *hole, list_t *freelist, list_t *memlist
 
 /*find a hole using worst fit algorithm
 */
-int findHoleWorst(data_t process, data_t *hole, list_t *freelist, list_t *memlist) {
+int findHoleWorst(int size, data_t *hole, list_t **freelist) {
 	return 1;
 }
 
@@ -279,7 +326,7 @@ int findHoleWorst(data_t process, data_t *hole, list_t *freelist, list_t *memlis
 
 /*find a hole using next fit algorithm
 */
-int findHoleNext(data_t process, data_t *hole, list_t *freelist, list_t *memlist) {
+int findHoleNext(int size, data_t *hole, list_t **freelist) {
 	return 1;
 }
 
@@ -287,7 +334,9 @@ int findHoleNext(data_t process, data_t *hole, list_t *freelist, list_t *memlist
 
 /*find a hole using next fit algorithm
 */
-void swapProcess(list_t *memlist, list_t *freelist, list_t *queue) {
+void swapOut(list_t *memlist, list_t *freelist, list_t *queue) {
+
+
 
 }
 
@@ -298,5 +347,67 @@ void swapProcess(list_t *memlist, list_t *freelist, list_t *queue) {
 void updateProcess(list_t *memlist, data_t *process, int turn, int mem_loc) {
 	process->turn_num = turn;
 	process->mem_loc = mem_loc;
-	insert_at_head(memlist, *process);
+	insert_data(*process,memlist,memCmp);
+}
+
+/****************************************************************/
+
+/*comparison function for descending ordering 
+							list of processes in memory by size
+*/
+int memCmp(data_t current, data_t insert) {
+	
+	return (insert.size - current.size);
+}
+
+/****************************************************************/
+
+/*comparison function for ascending ordering list of free holes by mem_loc
+*/
+int freeCmp(data_t current, data_t insert) {
+
+	return (current.mem_loc + current.size - insert.mem_loc);
+}
+
+/****************************************************************/
+
+/*insert data in its right position in list
+*/
+void insert_data(data_t data, list_t *list,int (*cmp)(data_t,data_t)) {
+	int i;
+	data_t tmp_data;
+	node_t *prev=NULL,*newnode;
+
+	for (i = 0; i < list->size; i++) {
+		if (i == 0) {
+			tmp_data = *begin_iterator(list);
+		}
+		else {
+			tmp_data = *step_iterator(list);
+		}
+
+		if (cmp(tmp_data,data) <= 0) {
+			prev = list->curr;
+			continue;
+		}
+		else {
+			break;
+		}
+	}
+
+	/* no hole in list before the inserted hole */
+	if (prev == NULL) {
+		insert_at_head(list, data);
+	}
+	/* no hole in list after the inserted hole*/
+	else if (list->curr == prev) {
+		insert_at_foot(list, data);
+	}
+	/* in between */
+	else {
+		newnode = (node_t*)malloc(sizeof(*newnode));
+		newnode->data = data;
+		prev->next = newnode;
+		newnode->next = list->curr;
+	}
 }
