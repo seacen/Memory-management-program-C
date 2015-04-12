@@ -85,6 +85,9 @@ main(int argc, char **argv) {
 	read_file(fname, queue);
 	initHole(freelist,mem_size);
 
+	/* print_list(queue);
+	print_list(freelist); */
+
 
 	if (strcmp(algo, "first")==0) {
 		managingMemory(queue, freelist, memlist,findHoleFirst);
@@ -269,6 +272,8 @@ void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 
 		/* get the top process in waiting queue */
 		process = remove_head(queue);
+
+		/*printData(process);*/
 
 		/* if cannot find a hole, do the swapping until can */
 		while (!findHole(process.size, &hole, &freelist)) {
@@ -460,6 +465,7 @@ void swapOut(list_t **memlist, list_t **freelist, list_t *queue) {
 	int homoCount;		/* count how many equal max size process */
 
 	process=getProcess(*memlist,&homoCount);
+	/*printf("HERE!!!");*/
 
 	removeProcess(memlist, process.id,homoCount);
 
@@ -569,14 +575,21 @@ data_t getProcess(list_t *memlist, int *count) {
 	
 	/* since memlist is a ordered list by size, head is the max size one */
 	*count = 0;
-	curr = largest = *begin_iterator(memlist);
 
 	/* check if there is multiple max size process */
-	while (curr.size == largest.size) {
-		larges[*count] = curr;
-		(*count)++;
-		curr = *step_iterator(memlist);
+	for (i = 0; i < memlist->size; i++) {
+		if (i == 0) {
+			curr = largest = *begin_iterator(memlist);
+		}
+		else {
+			curr = *step_iterator(memlist);
+		}
+		if (curr.size != largest.size) {
+			break;
+		}
+		larges[i] = curr;
 	}
+	*count = i;
 
 	/* find the one with lowest turn (oldest existence in memory) */
 	for (i = 0; i < *count; i++) {
@@ -585,7 +598,11 @@ data_t getProcess(list_t *memlist, int *count) {
 			maxI = i;
 		}
 	}
+
+	/* printData(larges[maxI]); */
+
 	return larges[maxI];
+
 }
 
 /****************************************************************/

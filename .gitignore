@@ -4,6 +4,8 @@ ehthumbs.db
 
 #executable c program
 *.exe
+#c object file
+*.o
 
 # Folder config file
 Desktop.ini
