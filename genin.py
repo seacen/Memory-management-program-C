@@ -12,6 +12,6 @@ def gen(start,finish,num,name):
 
   return
 
-gen(20,150,700,"1000in.txt")
-gen(100,280,700,"300in.txt")
-gen(20,70,700,"300s.txt")
+gen(20,150,700,"1000s.txt")
+gen(100,280,700,"300l.txt")
+gen(20,150,700,"300s.txt")

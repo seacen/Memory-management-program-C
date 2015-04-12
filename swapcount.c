@@ -38,8 +38,8 @@ void read_file(char *fname,list_t *queue);
 int read_line(char *line, int maxlen, FILE *f);
 void loadToData(char* line, data_t *data);
 void printData(data_t data);
-void managingMemory(list_t *queue, list_t *freelist, list_t *memlist, 
-							int (*findHole)(int, data_t*, list_t**));
+void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
+						int(*findHole)(int, data_t*, list_t**), int *swaps);
 void initHole(list_t *freelist, int mem_size);
 int findHoleFirst(int size, data_t *hole, list_t **freelist);
 int findHoleBest(int size, data_t *hole, list_t **freelist);
@@ -70,8 +70,10 @@ main(int argc, char **argv) {
 	
 	char *fname=NULL;
 	char algo[ALGO_LEN + 1];
-	int mem_size;
+	int mem_size,swaps = 0;
 	list_t *queue,*freelist,*memlist;
+	FILE *f;
+	char num[20];
 
 	fname=getOpt(argc,argv,fname,algo,&mem_size);
 
@@ -86,21 +88,34 @@ main(int argc, char **argv) {
 	initHole(freelist,mem_size);
 
 	if (strcmp(algo, "first")==0) {
-		managingMemory(queue, freelist, memlist,findHoleFirst);
+		managingMemory(queue, freelist, memlist,findHoleFirst,&swaps);
 	}
 	else if (strcmp(algo, "best") == 0) {
-		managingMemory(queue, freelist, memlist, findHoleBest);
+		managingMemory(queue, freelist, memlist, findHoleBest, &swaps);
 	}
 	else if (strcmp(algo, "worst") == 0) {
-		managingMemory(queue, freelist, memlist, findHoleWorst);
+		managingMemory(queue, freelist, memlist, findHoleWorst, &swaps);
 	}
 	else if (strcmp(algo, "next") == 0) {
-		managingMemory(queue, freelist, memlist, findHoleNext);
+		managingMemory(queue, freelist, memlist, findHoleNext, &swaps);
 	}
 	else {
 		printf("algorithm input is invalid");
 		exit(0);
 	}
+
+	printf("%d", swaps);
+
+	f = fopen("result.txt", "a");
+	fprintf(f, algo);
+	fputc(' ', f);
+	fprintf(f, fname);
+	fputc('\n', f);
+	sprintf(num, "%d", swaps);
+	fprintf(f, num);
+	fputc('\n', f);
+	fclose(f);
+
 	return 0;
 }
 
@@ -260,9 +275,9 @@ void initHole(list_t *freelist,int mem_size) {
 /*doing memory mangement process
 */
 void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
-							int (*findHole)(int,data_t*,list_t**)) {
+							int (*findHole)(int,data_t*,list_t**),int *swaps) {
 	data_t hole,process;
-	int turn = 0,memorySize=freelist->head->data.size;
+	int turn = 0;
 
 	while (!is_empty_list(queue)) {
 
@@ -272,17 +287,15 @@ void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 		/* if cannot find a hole, do the swapping until can */
 		while (!findHole(process.size, &hole, &freelist)) {
 			swapOut(&memlist, &freelist, queue);
+			(*swaps)++;
 			assert(freelist->foot != NULL);
 		}
 
 		updateProcess(memlist,&process,turn,hole.mem_loc);
 
-		printOutput(process.id, memlist, freelist->size, memorySize);
-
 		/* number of times processes have been added */
 		turn++;
 	}
-
 }
 
 /****************************************************************/
