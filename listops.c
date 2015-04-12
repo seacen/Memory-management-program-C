@@ -26,7 +26,7 @@ list_t
     list_t *list;
     list = (list_t*)malloc(sizeof(*list));
     assert(list!=NULL);
-    list->head = list->foot = list->curr = NULL;
+    list->head = list->foot = list->curr = list->prevHole = NULL;
     list->finger = NULL;
     list->size = 0;
     return list;

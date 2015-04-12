@@ -19,8 +19,7 @@
 															to execute the program */
 #define NUM_OPTIONS		3		/* number of options have to be there in arguments */
 #define LAST_OPTPOS		5		/* index position of the last option */
-#define LINELEN			40		/* max line length for the input */
-#define PRE_INPUT		2		/* number of input characters before the size integer */
+#define LINELEN			100		/* max line length for the input */
 
 #define NONE			'\0'	/* initial empty char */
 #define TRUE			1		/* boolean true */
@@ -86,6 +85,7 @@ main(int argc, char **argv) {
 
 	read_file(fname, queue);
 	initHole(freelist,mem_size);
+	print_list(freelist);
 
 
 	if (strcmp(algo, "first")==0) {
@@ -190,7 +190,7 @@ read_line(char *line, int maxlen, FILE *f) {
 			i++;
 		}
 		else {
-			printf("input line size is overlimit (40).");
+			printf("input line size is overlimit (%d).",LINELEN);
 			exit(0);
 		}
 	}
@@ -270,7 +270,7 @@ void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 
 	while (!is_empty_list(queue)) {
 		
-		/* printf("queue: \n");
+		/*printf("queue: \n");
 		print_list(queue);*/
 
 		process = remove_head(queue);
@@ -278,13 +278,13 @@ void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 			swapOut(&memlist, &freelist, queue);
 			assert(freelist->foot != NULL);
 		}
-		/* printf("hole: \n");
+		/*printf("hole: \n");
 		printData(hole); */
 		updateProcess(memlist,&process,turn,hole.mem_loc);
 
-		/* printf("memlist: \n");
-		print_list(memlist); */
-		/* printf("freelist: \n");
+	  /*printf("memlist: \n");
+		print_list(memlist); 
+		 printf("freelist: \n");
 		print_list(freelist);*/
 
 		printOutput(process.id, memlist, freelist->size, memorySize);
@@ -396,6 +396,7 @@ void updateHole(list_t **freelist, data_t hole, int size) {
 
 	split_list(*freelist, tmp_first, tmp_last);
 	*freelist = join_lists(*tmp_first, *tmp_last);
+	(*freelist)->prevHole = (*tmp_first)->foot;
 
 	if (hole.size > size) {
 		left_hole.id = hole.id;
@@ -423,7 +424,25 @@ int findHoleWorst(int size, data_t *hole, list_t **freelist) {
 /*find a hole using next fit algorithm
 */
 int findHoleNext(int size, data_t *hole, list_t **freelist) {
-	return 1;
+	int found = FALSE,i;
+	data_t *tmp;
+
+	(*freelist)->curr = (*freelist)->prevHole;
+	for (i = 0; i < (*freelist)->size; i++) {
+		if ((tmp = step_iterator(*freelist)) == NULL) {
+			*hole = *begin_iterator(*freelist);
+		}
+		else {
+			*hole = *tmp;
+		}
+		if (hole->size >= size) {
+			found = TRUE;
+			updateHole(freelist, *hole, size);
+			return found;
+		}
+	}
+
+	return found;
 }
 
 /****************************************************************/
@@ -435,13 +454,13 @@ void swapOut(list_t **memlist, list_t **freelist, list_t *queue) {
 	int homoCount;
 
 	process=getProcess(*memlist,&homoCount);
-
-	/* printData(process); */
+	
+	/*printData(process); */
 
 	removeProcess(memlist, process.id,homoCount);
 
 
-	/* printf("memlist: \n");
+	/*printf("memlist: \n");
 	print_list(*memlist);*/
 
 	hole = process;
@@ -451,13 +470,13 @@ void swapOut(list_t **memlist, list_t **freelist, list_t *queue) {
 
 	insert_data(hole,*freelist,freeCmp);
 
-	/* printf("freelist1: \n");
-	print_list(*freelist); */
+	/*printf("freelist1: \n");
+	print_list(*freelist);*/
 
 	checkAndMerge(freelist);
 
-	/* printf("freelist: \n");
-	print_list(*freelist); */
+	/*printf("freelist: \n");
+	print_list(*freelist);*/
 
 	process.mem_loc = UNACTIVATED;
 	process.swap_count++;

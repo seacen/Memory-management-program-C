@@ -40,6 +40,7 @@ typedef struct {
 	node_t *finger;
 	node_t *curr;   /* for iterator */
 	unsigned int size;
+	node_t *prevHole;
 
 } list_t;
 
