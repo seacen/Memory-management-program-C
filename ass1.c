@@ -8,6 +8,8 @@
 #include <string.h>
 #include <strings.h>
 #include <assert.h>
+#include <limits.h>
+#include <math.h>
 #include "listops.h"
 #include "listops.c"
 
@@ -23,6 +25,8 @@
 #define NONE			'\0'	/* initial empty char */
 #define TRUE			1		/* boolean true */
 #define FALSE			0		/* boolean false */
+#define DISABLED		-2		/* variable assigning to this is disabled */
+#define UNACTIVATED		-1		/* variable assigning to this is in its initial state */
 
 
 
@@ -42,12 +46,21 @@ int findHoleFirst(int size, data_t *hole, list_t **freelist);
 int findHoleBest(int size, data_t *hole, list_t **freelist);
 int findHoleWorst(int size, data_t *hole, list_t **freelist);
 int findHoleNext(int size, data_t *hole, list_t **freelist);
-void swapOut(list_t *memlist, list_t *freelist, list_t *queue);
+void swapOut(list_t **memlist, list_t **freelist, list_t *queue);
 void updateProcess(list_t *memlist, data_t *process, int turn, int mem_loc);
 void insert_data(data_t data, list_t *list,
 								int(*cmp)(data_t current,data_t insert));
 int memCmp(data_t current, data_t insert);
 int freeCmp(data_t current, data_t insert);
+data_t getProcess(list_t *memlist, int *count);
+void removeProcess(list_t **memlist, int id, int count);
+void checkAndMerge(list_t **freelist);
+void printOutput(int id, list_t *memlist, int numHoles, int memorySize);
+void updateHole(list_t **freelist, data_t hole, int size);
+void findExtreme(int size, data_t *hole, list_t **freelist,
+							int *found, int initBound, int(*cmp)(int, int));
+int cmpMin(int min, int curr);
+int cmpMax(int max, int curr);
 
 /****************************************************************/
 
@@ -190,25 +203,34 @@ read_line(char *line, int maxlen, FILE *f) {
 /*put line information to the data structure
 */
 void loadToData(char* line, data_t *data) {
-	char *size;
-	int sizeofsize,i;
+	char *size,id[strlen(line)];
+	int sizeofsize,i=0,x=0;
 
-	sizeofsize = strlen(line) - PRE_INPUT;
+	while (line[x] != ' ') {
+		id[x] = line[x];
+		x++;
+	}
+	id[x] = '\0';
+
+	data->id = atoi(id);
+
+	sizeofsize = strlen(line) - strlen(id)-1;
 	size = (char*)malloc(sizeofsize + 1);
 
-	/* covnert char to int */
-	data->id = line[0]-'0';
-
+	x++;
 	for (i = 0; i < sizeofsize; i++) {
-		size[i] = line[i + 2];
+		size[i] = line[x];
+		x++;
 	}
 	size[i] = '\0';
 
 	data->size = atoi(size);
 	/* initial value, not in memory yet */
-	data->mem_loc = -1;
+	data->mem_loc = UNACTIVATED;
 	data->turn_num = 0;
 	data->swap_count = 0;
+
+	/* printData(*data); */
 }
 
 /****************************************************************/
@@ -227,12 +249,12 @@ void printData(data_t data) {
 void initHole(list_t *freelist,int mem_size) {
 	data_t hole;
 
-	hole.id = 1;
+	hole.id = DISABLED;
 	hole.size = mem_size;
 	hole.mem_loc = 0;
 	/* below two never going to be used */
-	hole.turn_num = -2;
-	hole.swap_count = -2;
+	hole.turn_num = DISABLED;
+	hole.swap_count = DISABLED;
 
 	insert_at_foot(freelist,hole);
 }
@@ -244,19 +266,28 @@ void initHole(list_t *freelist,int mem_size) {
 void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 							int (*findHole)(int,data_t*,list_t**)) {
 	data_t hole,process;
-	int turn = 0;
+	int turn = 0,memorySize=freelist->head->data.size;
+
 	while (!is_empty_list(queue)) {
+		
+		/* printf("queue: \n");
+		print_list(queue);*/
+
 		process = remove_head(queue);
-
 		while (!findHole(process.size, &hole, &freelist)) {
-			swapOut(memlist, freelist, queue);
+			swapOut(&memlist, &freelist, queue);
+			assert(freelist->foot != NULL);
 		}
-
-		printData(hole);
+		/* printf("hole: \n");
+		printData(hole); */
 		updateProcess(memlist,&process,turn,hole.mem_loc);
 
-		print_list(memlist);
-		print_list(freelist);
+		/* printf("memlist: \n");
+		print_list(memlist); */
+		/* printf("freelist: \n");
+		print_list(freelist);*/
+
+		printOutput(process.id, memlist, freelist->size, memorySize);
 
 		turn++;
 	}
@@ -269,11 +300,7 @@ void managingMemory(list_t *queue, list_t *freelist, list_t *memlist,
 */
 int findHoleFirst(int size, data_t *hole, list_t **freelist) {
 	int i,found=FALSE;
-	data_t left_hole;
-	list_t **tmp_first, **tmp_last;
 
-	tmp_first = (list_t**)malloc(sizeof(*tmp_first));
-	tmp_last = (list_t**)malloc(sizeof(*tmp_last));
 	for (i = 0; i < (*freelist)->size; i++) {
 		if (i == 0) {
 			*hole=*begin_iterator(*freelist);
@@ -282,28 +309,13 @@ int findHoleFirst(int size, data_t *hole, list_t **freelist) {
 			*hole = *step_iterator(*freelist);
 		}
 		if (hole->size >= size) {
-			found = 1;
-			/* remove the hole from freelist */
-			split_list(*freelist, tmp_first, tmp_last);
-			*freelist=join_lists(*tmp_first, *tmp_last);
-
-			if (hole->size > size) {
-				left_hole.id = hole->id;
-				left_hole.size = (hole->size - size);
-				left_hole.mem_loc = hole->mem_loc + size;
-				left_hole.turn_num = left_hole.swap_count = -2;
-				insert_data(left_hole, *freelist,freeCmp);
-			}
+			found = TRUE;
+			updateHole(freelist, *hole, size);
 			break;
 		}
 	}
 
-	if (found) {
-		return TRUE;
-	}
-	else {
-		return FALSE;
-	}
+	return found;
 }
 
 /****************************************************************/
@@ -311,7 +323,87 @@ int findHoleFirst(int size, data_t *hole, list_t **freelist) {
 /*find a hole using best fit algorithm
 */
 int findHoleBest(int size, data_t *hole, list_t **freelist) {
-	return 1;
+	int found=FALSE;
+
+	findExtreme(size, hole, freelist, &found, INT_MAX, cmpMin);
+
+	return found;
+}
+
+/****************************************************************/
+
+/*find either the smallest or the biggest hole according to cmp function
+*/
+void findExtreme(int size, data_t *hole, list_t **freelist, 
+							int *found, int initBound, int(*cmp)(int,int)) {
+	int i, extSize = initBound;
+
+	for (i = 0; i < (*freelist)->size; i++) {
+		if (i == 0) {
+			*hole = *begin_iterator(*freelist);
+		}
+		else {
+			*hole = *step_iterator(*freelist);
+		}
+		if (hole->size >= size) {
+			*found = TRUE;
+			if (cmp(extSize,hole->size)<0) {
+				extSize = hole->size;
+			}
+		}
+	}
+
+	for (i = 0; i < (*freelist)->size; i++) {
+		if (i == 0) {
+			*hole = *begin_iterator(*freelist);
+		}
+		else {
+			*hole = *step_iterator(*freelist);
+		}
+		if (hole->size == extSize) {
+			updateHole(freelist, *hole, size);
+			break;
+		}
+	}
+}
+
+/****************************************************************/
+
+/*return negative if current hole size is smaller than prev min
+*/
+int cmpMin(int min, int curr) {
+	return (curr - min);
+}
+
+/****************************************************************/
+
+/*return negative if current hole size is bigger than prev min
+*/
+int cmpMax(int max, int curr) {
+	return (max - curr);
+}
+
+/****************************************************************/
+
+/*remove found hole and add remaining back to freelist
+*/
+void updateHole(list_t **freelist, data_t hole, int size) {
+	data_t left_hole;
+	list_t **tmp_first, **tmp_last;
+
+	tmp_first = (list_t**)malloc(sizeof(*tmp_first));
+	tmp_last = (list_t**)malloc(sizeof(*tmp_last));
+
+	split_list(*freelist, tmp_first, tmp_last);
+	*freelist = join_lists(*tmp_first, *tmp_last);
+
+	if (hole.size > size) {
+		left_hole.id = hole.id;
+		left_hole.size = (hole.size - size);
+		left_hole.mem_loc = hole.mem_loc + size;
+		left_hole.turn_num = left_hole.swap_count = DISABLED;
+		insert_data(left_hole, *freelist, freeCmp);
+	}
 }
 
 /****************************************************************/
@@ -319,7 +411,11 @@ int findHoleBest(int size, data_t *hole, list_t **freelist) {
 /*find a hole using worst fit algorithm
 */
 int findHoleWorst(int size, data_t *hole, list_t **freelist) {
-	return 1;
+	int found = FALSE;
+
+	findExtreme(size, hole, freelist, &found, 0, cmpMax);
+
+	return found;
 }
 
 /****************************************************************/
@@ -332,12 +428,147 @@ int findHoleNext(int size, data_t *hole, list_t **freelist) {
 
 /****************************************************************/
 
-/*find a hole using next fit algorithm
+/*swap out a process from memory
 */
-void swapOut(list_t *memlist, list_t *freelist, list_t *queue) {
+void swapOut(list_t **memlist, list_t **freelist, list_t *queue) {
+	data_t process,hole;
+	int homoCount;
+
+	process=getProcess(*memlist,&homoCount);
+
+	/* printData(process); */
+
+	removeProcess(memlist, process.id,homoCount);
 
 
+	/* printf("memlist: \n");
+	print_list(*memlist);*/
 
+	hole = process;
+	hole.id = DISABLED;
+	hole.turn_num = DISABLED;
+	hole.swap_count = DISABLED;
+
+	insert_data(hole,*freelist,freeCmp);
+
+	/* printf("freelist1: \n");
+	print_list(*freelist); */
+
+	checkAndMerge(freelist);
+
+	/* printf("freelist: \n");
+	print_list(*freelist); */
+
+	process.mem_loc = UNACTIVATED;
+	process.swap_count++;
+
+	if (process.swap_count != 3) {
+		insert_at_foot(queue, process);
+	}
+
+}
+
+/****************************************************************/
+
+/*check adjacent holes see if they can be merged
+*/
+void checkAndMerge(list_t **freelist) {
+	int i,init_size,prevMerged=FALSE;
+	data_t prev, curr;
+	node_t *nprev,*ncurr;
+	list_t **tmp_first, **tmp_last;
+
+	tmp_first = (list_t**)malloc(sizeof(*tmp_first));
+	tmp_last = (list_t**)malloc(sizeof(*tmp_last));
+
+	init_size = (*freelist)->size;
+	for (i = 0; i < init_size; i++) {
+		if (i == 0) {
+			prev = curr = *begin_iterator(*freelist);
+			ncurr = (*freelist)->curr;
+		}
+		else {
+			if (!prevMerged) {
+				prev = curr;
+				nprev = ncurr;
+			}
+			(*freelist)->curr = nprev;
+			curr = *step_iterator(*freelist);
+			ncurr = (*freelist)->curr;
+		}
+		if ((prev.mem_loc + prev.size) == curr.mem_loc) {
+			prevMerged = TRUE;
+			nprev->data.size += curr.size;
+			prev.size += curr.size;
+
+			split_list(*freelist, tmp_first, tmp_last);
+
+			if ((*tmp_last)->foot == NULL) {
+				assert((*tmp_first)->foot != NULL);
+			}
+			*freelist = join_lists(*tmp_first, *tmp_last);
+			assert((*freelist)->foot != NULL);
+			
+			/*printf("freelist merged!: \n");
+			print_list(*freelist); */
+		}
+		else {
+			prevMerged = FALSE;
+		}
+	}
+}
+
+/****************************************************************/
+
+/*remove the process from memory
+*/
+void removeProcess(list_t **memlist, int id, int count) {
+	int i;
+	data_t curr;
+	list_t **tmp_first, **tmp_last;
+
+	tmp_first = (list_t**)malloc(sizeof(*tmp_first));
+	tmp_last = (list_t**)malloc(sizeof(*tmp_last));
+
+	for (i = 0; i < count; i++) {
+		if (i == 0) {
+			curr = *begin_iterator(*memlist);
+		}
+		else {
+			curr = *step_iterator(*memlist);
+		}
+		if (curr.id == id) {
+			split_list(*memlist, tmp_first, tmp_last);
+			*memlist = join_lists(*tmp_first,*tmp_last);
+			break;
+		}
+	}
+}
+
+/****************************************************************/
+
+/*get the right process to swap out, return the process id
+*/
+data_t getProcess(list_t *memlist, int *count) {
+	data_t largest, curr, larges[memlist->size];
+	int i, minTurn = INT_MAX, maxI;
+	
+	*count = 0;
+	curr = largest = *begin_iterator(memlist);
+
+	while (curr.size == largest.size) {
+		larges[*count] = curr;
+		(*count)++;
+		curr = *step_iterator(memlist);
+	}
+
+	for (i = 0; i < *count; i++) {
+		if (larges[i].turn_num < minTurn) {
+			minTurn = larges[i].turn_num;
+			maxI = i;
+		}
+	}
+	return larges[maxI];
 }
 
 /****************************************************************/
@@ -348,6 +579,30 @@ void updateProcess(list_t *memlist, data_t *process, int turn, int mem_loc) {
 	process->turn_num = turn;
 	process->mem_loc = mem_loc;
 	insert_data(*process,memlist,memCmp);
+}
+
+/****************************************************************/
+
+/*print output to screen
+*/
+void printOutput(int id, list_t *memlist, int numHoles, int memorySize) {
+	int memUsage,i;
+	double memSum=0;
+	data_t process;
+
+	for (i = 0; i < memlist->size; i++) {
+		if (i == 0) {
+			process = *begin_iterator(memlist);
+		}
+		else {
+			process = *step_iterator(memlist);
+		}
+		memSum += process.size;
+	}
+	memUsage = (int)ceil(100 * (memSum / ((double)memorySize)));
+
+	printf("%d loaded, numprocesses=%d, ",id,memlist->size);
+	printf("numholes=%d, memusage=%d%\n",numHoles,memUsage);
 }
 
 /****************************************************************/
@@ -401,6 +656,7 @@ void insert_data(data_t data, list_t *list,int (*cmp)(data_t,data_t)) {
 	}
 	/* no hole in list after the inserted hole*/
 	else if (list->curr == prev) {
+		/* printData(data); */
 		insert_at_foot(list, data);
 	}
 	/* in between */
@@ -409,5 +665,6 @@ void insert_data(data_t data, list_t *list,int (*cmp)(data_t,data_t)) {
 		newnode->data = data;
 		prev->next = newnode;
 		newnode->next = list->curr;
+		(list->size)+=1;
 	}
 }

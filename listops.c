@@ -279,6 +279,9 @@ join_lists(list_t *list1, list_t *list2) {
     if (is_empty_list(list1)) {
         newlist = list2;
     }
+	else if (is_empty_list(list2)) {
+		newlist = list1;
+	}
 	else {
         newlist = make_empty_list();
         newlist->head = list1->head;
