@@ -14,3 +14,19 @@ next 1000s.txt
 2053
 first 1000s.txt
 2016
+next 300l.txt
+2099
+worst 300l.txt
+2099
+first 300l.txt
+2099
+best 300l.txt
+2099
+best m300_in.txt
+13
+first m300_in.txt
+13
+worst m300_in.txt
+12
+next m300_in.txt
+12

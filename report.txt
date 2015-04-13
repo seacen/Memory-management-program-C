@@ -1,0 +1,47 @@
+1.
+to measure the performance of each algorithm, the number of swaps happened has been chosen as the measure for comparison.
+
+This is because by definition of performance in memory management concept, the longer an average process has run in memory in a fixed amount of time, the better the algorithm. Another aspect would be the utility of memory in which the higher the memory usage in average, the better the algorithm. 
+
+Since our programs do not terminate based on time, but the emptying of waiting queue, in which is based on how long all processes have either been in memory or swapped thrice, the fewer the number of swaps happened overall, the longer the staying in memory for all processes before termination. Fewer number of swaps also indicates a good utility of memory since swapping is triggered when there is no hole in memory efficient enough for the next process to load, the fewer the swapping, the better the memory usage in average.
+
+The memswap program was modified to append the total swap number into a result.txt file when run. A python script is also written to generate test cases by writing a process id and a random integer between a given range as process size to a given file for a given number of times.
+
+Test cases are chosen to be generated for {size range: 20-150 (small),num process:700,mem size:300 (small)}, {size range:small,num process:700,mem size:1000 (large)} and {size range: 100-280 (large),num process:700,mem size:300} respectively.
+
+This is because all other combinations of {s,n,m} are not meaningful since small "n" will lower down randomness and a {"s":large,"m":large} pair is technically the same as the first test case ({"s":small,"m":small}), a {"s":large,"m":small} pair will result in only one process can be in memory each time and swap number will eventually be close to 2100 (3*700).
+
+the result is as follows (number is mem-size, char is process size range, s=20-150, l=100-280):
+first 300s
+2089
+next 300s
+2090
+best 300s
+2084
+worst 300s
+2086
+worst 1000s
+2029
+best 1000s
+2024
+next 1000s
+2053
+first 1000s
+2016
+
+Given the high extent of randomness and num-processes, the result could be summarised as similar for all algorithms across both combinations. 
+
+This result might be due to the fact that, implementing best-fit could potentially create many small size external fragmentation that reduce efficiency; worst-fit could miss out an exact size hole for the current process to choose a bigger one; first and next fit may miss out the exact size hole too or may also occupy and split a perfect large hole for some upcoming process. The probabilities for these events to happen are quite equal due to the high randomness of the process size in which is same in real word, and also the fact that the knowledge of processes in queue has not been used when making decisions.
+
+2.
+The assumption to make for this statement is that the size of each process in initial waiting queue has to be random. A queue with pattern would break the statement. For example if all sizes of processes is relatively large to the memory size, the process hole ratio will become 1:1 since each time only one process is able to stay in memory. Likewise for all other size values if all processes have the same size, the ratio will not be 2:1.
+
+If segment of memory means the basic unit of memoy (ex. MB or KB) and "number of segments containing processes" simply means the size of all processes, a simple proof could be:
+
+A process has to be swapped when no hole is big enough for the loading process. Assume there is only two types of processes, big one (>=50%) and small one(<=25%), and processes in memory are contiguous stored.  If the loading process is big when swapping is needed, it means the current memory usage is > 50%, the biggest process in mem will be swapped and it will either be bigger than loading-process or smaller. When bigger, after loading memory usage will be a bit less, in average 2/3 of the memsize approximately. When smaller, swapping need to continue since still not enough hole is there and eventually a bigger hole than before will exist and mem usage becomes 2/3 approximately.
+
+If loading process is small, it means the current memusage is at least greater than 75%, after biggest process is swapped, the memusage will become significantly smaller. Then rest of processes in queue will  get loaded  one at a time until a new swapping situation occurs.
+
+The end point would approximately stop at memusage 2/3, since the program will likely to stop at the point a process is swapped thrice for the last process in queue to load.
+
+2/3 means processes total size (number of units (segments) containing processes) and hole total size (# segments containing holes) ratio is 2:1, thus the statement.
